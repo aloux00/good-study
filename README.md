@@ -292,14 +292,72 @@ node tools/update_courses.js --deploy   # 刷新后 git 提交并推送
 - **限流**：每个请求间隔 500ms，失败重试一次，不会给 B 站添麻烦。
 - 这个脚本在你的电脑上运行即可，不需要在 armbian 小主机上跑。
 
-## 十、目录说明
+## 十、部署到 Cloudflare Pages（可选）
+
+不想自己维护服务器时，前端和进度 API 可以一起放到 Cloudflare：静态资源走 Pages，进度 API 走 Pages Functions，数据存 D1。前端代码**不需要任何改动**（API 同域）。
+
+**视频速度不受影响** —— 视频仍是浏览器直接从 B 站 CDN 拉取，不经过 Cloudflare。实测 B 站播放器首字节 85ms，与部署在哪里无关。
+
+### 1. 建 D1 数据库
+
+控制台 → Storage & Databases → D1 → Create，名字随意（如 `kezhan`）。创建后进 Console，把仓库根目录 `schema.sql` 的内容整段执行。
+
+### 2. 建 Pages 项目
+
+控制台 → Workers & Pages → Create → Pages → Connect to Git，选本仓库。构建配置：
+
+- Framework preset：`None`
+- Build command：**留空**
+- Build output directory：`public`
+
+### 3. 绑定 D1（关键）
+
+项目 → Settings → Bindings → Add → D1 database：
+
+- Variable name：**`DB`**（必须叫这个，代码里按这个名字取）
+- D1 database：选第 1 步建的库
+
+绑定后需要重新部署一次才生效。
+
+### 4. 访问令牌（建议设置）
+
+Settings → Variables and Secrets → Add，类型选 **Secret**：
+
+- Name：`AUTH_TOKEN`
+- Value：一串随机字符
+
+设置后前端首次访问会弹框要求粘贴一次。不设则保持家用免配置模式，学习码是唯一凭证。
+
+### 5. 新增文件
 
 ```
-server.js                 后端：静态托管 + 学习码 + 进度同步（零依赖）
+functions/api/[[path]].js   Pages Functions：进度 API（与原 server.js 契约一致）
+public/_routes.json         只让 /api/* 走 Functions，静态资源直接由 CDN 返回
+schema.sql                  D1 建表语句
+```
+
+`_routes.json` 不能省：没有它，每个静态请求都会消耗一次 Functions 调用额度。
+
+### 6. 已知限制
+
+- **不要用 `*.workers.dev` 域名**。该域名在国内被 DNS 污染，实测直接超时（解析到 Facebook/Dropbox 的 IP 段）。用 `*.pages.dev` 或绑定自定义域名。
+- **国内访问 Pages 比自建慢**。实测首字节 700–880ms，自建内网是毫秒级。只影响页面和 API，不影响视频。
+- **D1 写入要走主库**。国内写入延迟约 200–500ms，进度同步够用但不算快。
+- **限流是进程内的**。Workers 冷启动会清零、多实例不共享。防 6 位码枚举够用；要严格限流需换 Durable Objects。
+- **免费额度**：Workers 10 万请求/天、D1 10 万行写/天。家庭使用远低于此。
+
+## 十一、目录说明
+
+```
+server.js                 后端（自建版）：静态托管 + 学习码 + 进度同步（零依赖）
+deploy.sh                 自建部署脚本（Debian/Armbian，一条命令装成 systemd 服务）
 public/index.html         页面骨架
 public/app.css            样式（含深色模式、移动端断点）
 public/app.js             前端逻辑：筛选、分集播放、进度、家长视图
 public/data/courses.json  课程库（56 门 / 2990 集，含封面与推荐理由）
+public/_routes.json       Cloudflare Pages 路由规则（仅 /api/* 走 Functions）
+functions/api/[[path]].js Cloudflare 版进度 API（D1 存储）
+schema.sql                D1 建表语句
 tools/update_courses.js   数据维护脚本：查失效、补封面、生成推荐理由（本地运行）
 .gitignore                忽略运行时数据与临时备份
 ```
