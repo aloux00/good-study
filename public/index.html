@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>课栈 · 高中数学物理化学英语学习中心</title>
+<meta name="theme-color" content="#F4F4F6" />
+<link rel="stylesheet" href="./app.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23F3A04C'/%3E%3Cpath d='M9 10h6.5v12H9zM16.5 10H23v12h-6.5z' fill='%23fff'/%3E%3C/svg%3E" />
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">课</span>
+      <span class="brandtext">课栈 · 学习中心</span>
+    </div>
+    <label class="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <input id="q" type="search" placeholder="搜索课程、章节或 UP 主，如「基本不等式」" autocomplete="off" />
+    </label>
+    <div class="topstatus">
+      <span class="pill" id="syncPill" title="同步状态"><span class="dot" id="syncDot"></span><span id="syncText">未连接</span></span>
+      <button class="pill code-pill" id="codeBtn" type="button" title="点击复制学习码">学习码 <b id="codeText">----</b></button>
+      <button class="ghost" id="parentBtn" type="button">家长视图</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="side">
+      <div class="side-group">
+        <h4>学段</h4>
+        <div class="chips" id="stageChips">
+          <button class="chip on" type="button" data-stage="senior">高中</button>
+          <button class="chip" type="button" disabled title="后续版本补充">小学 · 待补</button>
+          <button class="chip" type="button" disabled title="后续版本补充">初中 · 待补</button>
+        </div>
+      </div>
+      <div class="side-group">
+        <h4>年级</h4>
+        <div class="chips" id="gradeChips"></div>
+      </div>
+      <div class="side-group">
+        <h4>学科</h4>
+        <div class="chips" id="subjectChips"></div>
+      </div>
+      <div class="side-group">
+        <h4>学习状态</h4>
+        <div class="chips" id="stateChips">
+          <button class="chip on" type="button" data-state="all">全部</button>
+          <button class="chip" type="button" data-state="todo">未开始</button>
+          <button class="chip" type="button" data-state="doing">进行中</button>
+          <button class="chip" type="button" data-state="done">已完成</button>
+        </div>
+      </div>
+      <div class="side-group">
+        <h4>排序</h4>
+        <div class="chips" id="sortChips">
+          <button class="chip on" type="button" data-sort="score">口碑优先</button>
+          <button class="chip" type="button" data-sort="play">播放量</button>
+          <button class="chip" type="button" data-sort="mine">我的进度</button>
+        </div>
+      </div>
+      <p class="side-note" id="dataNote"></p>
+    </aside>
+
+    <main class="main">
+      <section class="resume" id="resumeCard" hidden>
+        <div class="resume-thumb" aria-hidden="true"><i></i></div>
+        <div class="resume-meta">
+          <div class="resume-title" id="resumeTitle">—</div>
+          <div class="resume-sub" id="resumeSub">—</div>
+          <div class="bar"><i id="resumeBar" style="width:0%"></i></div>
+        </div>
+        <button class="primary" id="resumePlay" type="button">继续播放</button>
+      </section>
+
+      <div class="gridhead">
+        <h2 id="listTitle">高中数学</h2>
+        <span id="listCount" class="count"></span>
+      </div>
+
+      <div class="cards" id="cards"></div>
+      <p class="empty" id="empty" hidden>没有符合条件的课程，试试放宽筛选或清空搜索。</p>
+    </main>
+  </div>
+</div>
+
+<!-- 播放面板 -->
+<div class="player-shell" id="playerShell" hidden>
+  <div class="player-backdrop" id="playerBackdrop"></div>
+  <section class="player-panel" role="dialog" aria-modal="true" aria-labelledby="playerTitle">
+    <header class="player-head">
+      <div class="player-heading">
+        <h3 id="playerTitle">—</h3>
+        <p id="playerMeta">—</p>
+      </div>
+      <div class="player-actions">
+        <a class="ghost" id="playerOpen" href="#" target="_blank" rel="noopener noreferrer">原站打开</a>
+        <button class="ghost" id="playerClose" type="button">关闭</button>
+      </div>
+    </header>
+    <div class="player-frame">
+      <iframe id="playerFrame" title="课程播放器" allowfullscreen allow="autoplay; fullscreen; picture-in-picture" referrerpolicy="no-referrer"></iframe>
+    </div>
+
+    <div class="ep-bar">
+      <div class="ep-bar-head">
+        <span class="tracker-label">分集</span>
+        <span class="ep-now" id="epLabel">—</span>
+      </div>
+      <div class="ep-list" id="epList"></div>
+    </div>
+
+    <div class="tracker">
+      <div class="tracker-row">
+        <span class="tracker-label">当前位置</span>
+        <input id="posRange" class="range" type="range" min="0" max="3600" step="5" value="0" aria-label="看到第几秒" />
+        <span class="tracker-time" id="posText">00:00</span>
+      </div>
+      <div class="tracker-quick">
+        <button class="mini timer-toggle" id="timerToggle" type="button" title="开始播放视频后点这里，进度才会按秒累计">▶ 开始计时</button>
+        <button class="mini" type="button" data-skip="-60">-1 分钟</button>
+        <button class="mini" type="button" data-skip="60">+1 分钟</button>
+        <button class="mini" type="button" data-skip="300">+5 分钟</button>
+        <button class="mini" id="markDone" type="button">标记已看完</button>
+        <span class="tracker-hint" id="trackerHint">⚠️ 此进度是<strong>估算值</strong>：B 站播放器在第三方域，网页读不到真实播放时间。<strong>请先点「开始计时」，进度才会累计</strong>；切到后台会自动暂停。估算到头时<strong>不会自动切下一集</strong>，请自己确认后用时间轴 / ±分钟校正，或点「标记已看完」。</span>
+      </div>
+    </div>
+
+    <footer class="player-foot">
+      <div class="foot-stat"><span>本课累计</span><b id="statWatched">0 分钟</b></div>
+      <div class="foot-stat"><span>完成度（估算）</span><b id="statPercent">0%</b></div>
+      <div class="foot-stat"><span>保存</span><b id="statSave">—</b></div>
+      <button class="ghost" id="saveNow" type="button">立即同步</button>
+      <button class="primary" id="saveClose" type="button">保存并关闭</button>
+    </footer>
+  </section>
+</div>
+
+<!-- 家长视图 -->
+<div class="player-shell" id="parentShell" hidden>
+  <div class="player-backdrop" id="parentBackdrop"></div>
+  <section class="player-panel parent-panel" role="dialog" aria-modal="true" aria-labelledby="parentTitle">
+    <header class="player-head">
+      <div class="player-heading">
+        <h3 id="parentTitle">家长视图 · 只读进度</h3>
+        <p id="parentMeta">用同一学习码在任意设备查看，数据来自你自建的同步服务。</p>
+      </div>
+      <div class="player-actions"><button class="ghost" id="parentClose" type="button">关闭</button></div>
+    </header>
+    <div class="parent-body">
+      <div class="kpis" id="parentKpis"></div>
+      <h4 class="sec-title">各学科完成情况</h4>
+      <div id="parentSubjects" class="subject-rows"></div>
+      <h4 class="sec-title">最近学习记录</h4>
+      <div id="parentRecent" class="recent-rows"></div>
+    </div>
+    <footer class="player-foot">
+      <span class="tracker-hint">只读视图，不改动任何进度。数据时间：<b id="parentTime">—</b></span>
+      <button class="ghost" id="parentSwitch" type="button">切换学习码</button>
+    </footer>
+  </section>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script src="./app.js"></script>
+</body>
+</html>
