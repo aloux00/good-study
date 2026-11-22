@@ -21,7 +21,7 @@ const state = {
   code: null,
   online: false,
   syncing: false,
-  player: { course: null, ep: 0, pos: 0, duration: FALLBACK_DURATION, timer: null, dirty: false, lastInteract: 0, ticking: false },
+  player: { course: null, ep: 0, pos: 0, duration: FALLBACK_DURATION, timer: null, dirty: false, lastInteract: 0, ticking: false, loadTimer: null },
   lastSyncAt: null,
 };
 
@@ -593,6 +593,14 @@ function openPlayer(id, epArg) {
   startTicker();
 }
 
+function setPlayerLoading(on) {
+  const box = $('playerLoading');
+  if (!box) return;
+  box.hidden = !on;
+  const txt = $('playerLoadingText');
+  if (txt) txt.textContent = '正在加载播放器…';
+}
+
 function loadFrame() {
   const p = state.player;
   const c = p.course;
@@ -600,6 +608,15 @@ function loadFrame() {
   // B 站 iframe 支持 &page=N 指定分 P；t= 为起始秒
   const src = c.embed.replace(/[?&]page=\d+/, '').replace(/&?t=\d+/, '') +
     '&page=' + (p.ep + 1) + '&t=' + Math.floor(p.pos);
+  setPlayerLoading(true);
+  // 网络慢时先给一句话，避免用户以为「点了没反应 / 跳走了」
+  if (state.player.loadTimer) clearTimeout(state.player.loadTimer);
+  state.player.loadTimer = setTimeout(() => {
+    const txt = $('playerLoadingText');
+    if (txt && !$('playerLoading').hidden) {
+      txt.textContent = '加载较慢或失败，可点右上角「原站打开」';
+    }
+  }, 12000);
   $('playerFrame').src = src;
 }
 
@@ -760,6 +777,8 @@ function closePlayer() {
   persistCurrent(true);
   stopTicker();
   state.player.course = null;
+  if (state.player.loadTimer) { clearTimeout(state.player.loadTimer); state.player.loadTimer = null; }
+  setPlayerLoading(false);
   $('playerFrame').src = 'about:blank';
   $('playerShell').hidden = true;
   document.body.style.overflow = '';
@@ -767,6 +786,12 @@ function closePlayer() {
 }
 
 function bindPlayer() {
+  // iframe 加载完成即撤掉「正在加载」遮罩
+  $('playerFrame').addEventListener('load', () => {
+    if (state.player.loadTimer) { clearTimeout(state.player.loadTimer); state.player.loadTimer = null; }
+    const box = $('playerLoading');
+    if (box) box.hidden = true;
+  });
   $('cards').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-play]');
     if (btn) openPlayer(btn.dataset.play, null);
