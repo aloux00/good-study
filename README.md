@@ -273,12 +273,33 @@ sudo systemctl start kezhan
 
 同时把 `subjects` 数组里对应学科的 `count` 加 1。若新增学科（如语文），再往 `subjects` 加一条并补 `grade` 之外的选项即可，前端会自动出现新筛选按钮。
 
-## 九、目录说明
+加完课程后，跑一次 `node tools/update_courses.js`，脚本会自动补上 `cover`（B 站封面缩图）和 `reason`（推荐理由），并检查视频是否失效。这两项字段是可选的：没有封面时前端显示渐变色块，没有理由时显示学科与主题。若手工写好了推荐理由，设 `"reasonLocked": true`，脚本不会覆盖。
+
+封面来自 B 站官方 CDN 并拼接 `@672w_378h_1c.webp` 现场缩图（约 120KB → 20KB）。图片带 `referrerpolicy="no-referrer"`，加载失败会自动移除、回退到渐变色块，不影响使用。
+
+## 九、数据维护脚本
+
+`tools/update_courses.js` 参考 BiliPicks 的维护思路，用 B 站公开接口（`x/web-interface/view`）只读地检查课程数据，零第三方依赖：
+
+```bash
+node tools/update_courses.js            # 刷新：补封面/理由、检测失效、刷新标题基线
+node tools/update_courses.js --check    # 只出报告，不改文件
+node tools/update_courses.js --deploy   # 刷新后 git 提交并推送
+```
+
+- **失效检测**：视频被删、不可见等，会标 `"dead": true`，前端自动隐藏；恢复可看后自动取消隐藏。
+- **标题变化只提示、不覆盖**：本地标题是人工清洗过的短标题，和 B 站原标题天然不同。脚本首次运行记录基线，之后 B 站标题真的变了才提示，不会改动你写好的标题。
+- **限流**：每个请求间隔 500ms，失败重试一次，不会给 B 站添麻烦。
+- 这个脚本在你的电脑上运行即可，不需要在 armbian 小主机上跑。
+
+## 十、目录说明
 
 ```
 server.js                 后端：静态托管 + 学习码 + 进度同步（零依赖）
 public/index.html         页面骨架
 public/app.css            样式（含深色模式、移动端断点）
 public/app.js             前端逻辑：筛选、分集播放、进度、家长视图
-public/data/courses.json  课程库（56 门 / 2990 集）
+public/data/courses.json  课程库（56 门 / 2990 集，含封面与推荐理由）
+tools/update_courses.js   数据维护脚本：查失效、补封面、生成推荐理由（本地运行）
+.gitignore                忽略运行时数据与临时备份
 ```

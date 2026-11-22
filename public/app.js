@@ -77,11 +77,15 @@ async function loadCourses() {
   const res = await fetch('./data/courses.json', { cache: 'no-cache' });
   if (!res.ok) throw new Error('课程数据加载失败');
   const data = await res.json();
-  state.courses = data.courses || [];
+  // 失效视频（源站删除/不可见）自动隐藏，避免点开是空播放器
+  const all = data.courses || [];
+  const dead = all.filter((c) => c.dead);
+  state.courses = all.filter((c) => !c.dead);
   state.meta = data;
   const eps = state.courses.reduce((s, c) => s + (c.partCount || 1), 0);
   $('dataNote').textContent =
-    `${state.courses.length} 门课程 · ${eps} 个分集 · 核对于 ${data.generatedAt}`;
+    `${state.courses.length} 门课程 · ${eps} 个分集 · 核对于 ${data.generatedAt}` +
+    (dead.length ? ` · 已隐藏 ${dead.length} 门失效课程` : '');
   // 默认学科用上次选过的，没有则取课程库第一个学科，避免写死 math
   const keys = (data.subjects || []).map((s) => s.key);
   const last = localStorage.getItem(LS_SUBJECT);
@@ -457,6 +461,16 @@ function cardFor(course, idx) {
 
   const cover = el('div', 'cover');
   cover.style.background = COVER_COLORS[idx % COVER_COLORS.length];
+  // 真实封面（B 站 CDN 缩图）；加载失败时 img 移除，露出下面的渐变色块和文字
+  if (course.cover) {
+    const img = el('img', 'cover-img');
+    img.src = course.cover;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.referrerPolicy = 'no-referrer';
+    img.addEventListener('error', () => img.remove(), { once: true });
+    cover.appendChild(img);
+  }
   cover.append(
     el('span', 'sub', course.subjectName + ' · ' + course.grade),
     el('span', 'tagm', course.partCount > 1 ? course.partCount + ' 集' : fmtShort(course.episodeDuration)),
@@ -465,6 +479,9 @@ function cardFor(course, idx) {
 
   const name = el('div', 'name', course.title);
   name.title = course.title;
+
+  const reason = el('div', 'reason', course.reason || (course.subjectName + ' · ' + course.topic));
+  reason.title = course.reason || '';
 
   const src = el('div', 'src');
   src.append(el('b', null, course.creator), document.createTextNode(' · ' + course.topic));
@@ -487,7 +504,7 @@ function cardFor(course, idx) {
   btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l12 7-12 7z"/></svg>' +
     (st.done ? '再看一遍' : (st.watched > 0 ? '继续播放' : '开始学习'));
 
-  card.append(cover, name, src, pbar, btn);
+  card.append(cover, name, reason, src, pbar, btn);
   return card;
 }
 
@@ -564,6 +581,9 @@ function openPlayer(id, epArg) {
   $('playerTitle').textContent = course.title;
   $('playerMeta').textContent =
     `${course.subjectName} · ${course.grade} · ${course.creator} · ${course.playText} 播放 · 口碑 ${course.score}`;
+  const reasonBox = $('playerReason');
+  if (course.reason) { reasonBox.textContent = '推荐理由：' + course.reason; reasonBox.hidden = false; }
+  else reasonBox.hidden = true;
   $('playerOpen').href = course.url;
   loadFrame();
   renderEpList();
